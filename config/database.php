@@ -1,12 +1,23 @@
 <?php
-define('DB_HOST', getenv('MYSQLHOST') ?: 'localhost');
-define('DB_NAME', getenv('MYSQLDATABASE') ?: 'ikimina_ai');
-define('DB_USER', getenv('MYSQLUSER') ?: 'root');
-define('DB_PASS', getenv('MYSQLPASSWORD') ?: '');
+$mysqlUrl = getenv('MYSQL_URL');
+
+if ($mysqlUrl) {
+    $url = parse_url($mysqlUrl);
+    define('DB_HOST', $url['host']);
+    define('DB_PORT', $url['port'] ?? 3306);
+    define('DB_USER', $url['user']);
+    define('DB_PASS', $url['pass']);
+    define('DB_NAME', ltrim($url['path'], '/'));
+} else {
+    define('DB_HOST', 'localhost');
+    define('DB_NAME', 'ikimina_ai');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+}
 define('DB_CHARSET', 'utf8mb4');
 
 try {
-    $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+    $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
     $options = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
