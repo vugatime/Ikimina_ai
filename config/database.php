@@ -5,6 +5,12 @@ $dbUser = getenv('MYSQLUSER') ?: 'root';
 $dbPass = getenv('MYSQLPASSWORD') ?: '';
 $dbName = getenv('MYSQLDATABASE') ?: 'ikimina_ai';
 
+// Override host with proxy for external connections
+if ($dbHost == 'mysql.railway.internal') {
+    $dbHost = 'reseau.proxy.rlwy.net';
+    $dbPort = '53655';
+}
+
 define('DB_HOST', $dbHost);
 define('DB_PORT', $dbPort);
 define('DB_NAME', $dbName);
