@@ -2,7 +2,7 @@
 require_once __DIR__ . '/language_switcher.php';
 require_once __DIR__ . '/../config/session.php';
 $current_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$base = '/ikimina-ai/';
+$base = '/';
 $user_name = $_SESSION['user_name'] ?? 'Robert';
 $user_email = $_SESSION['user_email'] ?? 'vugatime@gmail.com';
 $user_role = $_SESSION['user_role'] ?? 'member';
