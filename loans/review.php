@@ -21,8 +21,8 @@ $adminInfo = $stmt->fetch();
 $groupId = $_GET['group_id'] ?? $adminInfo['group_id'] ?? null;
 $msg = $_GET['msg'] ?? '';
 
-// Get pending requests
-$stmt = $pdo->prepare("SELECT lr.*, gm.member_id, u.fullname, lp.product_name,
+// Get pending requests - ADDED gm.id as membership_id
+$stmt = $pdo->prepare("SELECT lr.*, gm.id as membership_id, gm.member_id, u.fullname, lp.product_name,
                        COALESCE((SELECT SUM(amount) FROM savings WHERE member_id = lr.member_id), 0) as total_savings,
                        (SELECT COUNT(*) FROM loans WHERE member_id = lr.member_id AND status IN ('active','approved')) as active_loans,
                        (SELECT COUNT(*) FROM loan_requests WHERE member_id = lr.member_id AND status = 'rejected') as rejected_count
@@ -78,11 +78,11 @@ $reviewedRequests = $stmt->fetchAll();
                 $riskLabel = $riskScore >= 70 ? 'Low Risk' : ($riskScore >= 40 ? 'Medium Risk' : 'High Risk');
                 $riskColor = $riskScore >= 70 ? 'text-green-600 bg-green-50' : ($riskScore >= 40 ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50');
                 
-                // Get AI scores for this member
-                $memberScores = getMemberAIScores($pdo, $pr['member_id'], $groupId);
+                // Get AI scores using numeric membership_id
+                $memberScores = getMemberAIScores($pdo, $pr['membership_id'], $groupId);
                 if (!$memberScores) {
-                    $scores = calculateMemberScores($pdo, $pr['member_id'], $groupId);
-                    saveAIScores($pdo, $pr['member_id'], $groupId, $scores);
+                    $scores = calculateMemberScores($pdo, $pr['membership_id'], $groupId);
+                    saveAIScores($pdo, $pr['membership_id'], $groupId, $scores);
                     $memberScores = $scores;
                 }
                 $riskBg = $memberScores['risk_label'] === 'LOW RISK' ? 'bg-green-50 text-green-700' : ($memberScores['risk_label'] === 'MEDIUM RISK' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700');
@@ -110,14 +110,14 @@ $reviewedRequests = $stmt->fetchAll();
                         <!-- AI Detailed Scores -->
                         <div class="mt-3 bg-white rounded-xl p-3 border">
                             <div class="flex flex-wrap gap-3 text-xs">
-                                <div><span class="text-gray-500">Trust Score:</span> <strong><?php echo $memberScores['trust_score']; ?>%</strong></div>
-                                <div><span class="text-gray-500">Savings:</span> <strong><?php echo $memberScores['savings_score']; ?>%</strong></div>
-                                <div><span class="text-gray-500">Repayment:</span> <strong><?php echo $memberScores['repayment_score']; ?>%</strong></div>
-                                <div><span class="text-gray-500">Eligibility:</span> <strong><?php echo $memberScores['loan_eligibility']; ?>%</strong></div>
-                                <div><span class="text-gray-500">Default Risk:</span> <strong><?php echo $memberScores['default_risk']; ?>%</strong></div>
-                                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-bold <?php echo $riskBg; ?>"><?php echo $memberScores['risk_label']; ?></span>
+                                <div><span class="text-gray-500">Trust Score:</span> <strong><?php echo $memberScores['trust_score'] ?? 0; ?>%</strong></div>
+                                <div><span class="text-gray-500">Savings:</span> <strong><?php echo $memberScores['savings_score'] ?? 0; ?>%</strong></div>
+                                <div><span class="text-gray-500">Repayment:</span> <strong><?php echo $memberScores['repayment_score'] ?? 0; ?>%</strong></div>
+                                <div><span class="text-gray-500">Eligibility:</span> <strong><?php echo $memberScores['loan_eligibility'] ?? 0; ?>%</strong></div>
+                                <div><span class="text-gray-500">Default Risk:</span> <strong><?php echo $memberScores['default_risk'] ?? 0; ?>%</strong></div>
+                                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-bold <?php echo $riskBg; ?>"><?php echo $memberScores['risk_label'] ?? 'MEDIUM RISK'; ?></span>
                             </div>
-                            <?php if ($memberScores['recommendation']): ?>
+                            <?php if (!empty($memberScores['recommendation'])): ?>
                                 <p class="text-xs text-gray-500 mt-2"><?php echo htmlspecialchars($memberScores['recommendation']); ?></p>
                             <?php endif; ?>
                         </div>
