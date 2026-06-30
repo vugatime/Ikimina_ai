@@ -1,19 +1,15 @@
 <?php
-$mysqlUrl = getenv('MYSQL_URL');
+$dbHost = getenv('MYSQLHOST') ?: 'localhost';
+$dbPort = getenv('MYSQLPORT') ?: '3306';
+$dbUser = getenv('MYSQLUSER') ?: 'root';
+$dbPass = getenv('MYSQLPASSWORD') ?: '';
+$dbName = getenv('MYSQLDATABASE') ?: 'ikimina_ai';
 
-if ($mysqlUrl) {
-    $url = parse_url($mysqlUrl);
-    define('DB_HOST', $url['host']);
-    define('DB_PORT', $url['port'] ?? 3306);
-    define('DB_USER', $url['user']);
-    define('DB_PASS', $url['pass']);
-    define('DB_NAME', ltrim($url['path'], '/'));
-} else {
-    define('DB_HOST', 'localhost');
-    define('DB_NAME', 'ikimina_ai');
-    define('DB_USER', 'root');
-    define('DB_PASS', '');
-}
+define('DB_HOST', $dbHost);
+define('DB_PORT', $dbPort);
+define('DB_NAME', $dbName);
+define('DB_USER', $dbUser);
+define('DB_PASS', $dbPass);
 define('DB_CHARSET', 'utf8mb4');
 
 try {
@@ -25,5 +21,5 @@ try {
     ];
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 } catch (PDOException $e) {
-    die("Database connection failed.");
+    die("Database connection failed: " . $e->getMessage());
 }
