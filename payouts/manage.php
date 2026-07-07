@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/payout_engine.php';
 
-if (!isset($_SESSION['user_id'])) { header('Location: /Ikimina_ai/auth.php'); exit; }
+if (!isset($_SESSION['user_id'])) { header('Location: /auth.php'); exit; }
 $current_user_id = $_SESSION['user_id'];
 $current_user_name = $_SESSION['user_name'] ?? 'User';
 $current_user_role = $_SESSION['user_role'] ?? 'member';
@@ -23,7 +23,7 @@ if ($current_user_role !== 'super_admin') {
 
 // Only Group Admin can manage payouts
 if ($groupRole !== 'group_admin' && $current_user_role !== 'super_admin') {
-    header('Location: /Ikimina_ai/dashboard.php'); exit;
+    header('Location: /dashboard.php'); exit;
 }
 
 // Get groups

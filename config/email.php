@@ -1,7 +1,7 @@
 <?php
 define('MAIL_FROM', getenv('MAIL_FROM') ?: 'agasobanuyenews@gmail.com');
 define('MAIL_FROM_NAME', 'IkiminaAI');
-define('APP_URL', getenv('APP_URL') ?: 'http://localhost/ikimina-ai');
+define('APP_URL', getenv('APP_URL') ?: 'https://ikiminaai-production.up.railway.app');
 
 function sendEmail($to, $subject, $body) {
     $headers = "MIME-Version: 1.0\r\n";

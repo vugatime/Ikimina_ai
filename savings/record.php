@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
-if (!isset($_SESSION['user_id'])) { header('Location: /Ikimina_ai/auth.php'); exit; }
+if (!isset($_SESSION['user_id'])) { header('Location: /auth.php'); exit; }
 $current_user_id = $_SESSION['user_id'];
 $current_user_name = $_SESSION['user_name'] ?? 'User';
 $current_user_role = $_SESSION['user_role'] ?? 'member';
@@ -18,7 +18,7 @@ $groupId = $memberData['group_id'] ?? null;
 
 // Check permission
 if (!in_array($groupRole, ['group_admin', 'assistant_admin', 'treasurer'])) {
-    header('Location: /Ikimina_ai/dashboard.php'); exit;
+    header('Location: /dashboard.php'); exit;
 }
 
 $message = $_GET['msg'] ?? '';

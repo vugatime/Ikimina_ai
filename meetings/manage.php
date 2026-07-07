@@ -7,8 +7,8 @@ require_once __DIR__ . '/../includes/auth_check.php';
 $stmt = $pdo->prepare("SELECT role_in_group FROM group_members WHERE user_id = ? AND deleted_at IS NULL LIMIT 1");
 $stmt->execute([$current_user_id]);
 $gr = $stmt->fetchColumn();
-if ($current_user_role === 'super_admin') { header('Location: /Ikimina_ai/dashboard.php'); exit; }
-if ($gr === 'member') { header('Location: /Ikimina_ai/dashboard.php'); exit; }
+if ($current_user_role === 'super_admin') { header('Location: /dashboard.php'); exit; }
+if ($gr === 'member') { header('Location: /dashboard.php'); exit; }
 
 $page_title = 'Meetings';
 $base_path = '../';

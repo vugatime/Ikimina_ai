@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../config/session.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header('Location: /Ikimina_ai/auth.php');
+    header('Location: /auth.php');
     exit;
 }
 

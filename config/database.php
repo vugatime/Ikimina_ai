@@ -1,18 +1,19 @@
 <?php
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'ikimina_ai');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+$dbHost = 'reseau.proxy.rlwy.net';
+$dbPort = '53655';
+$dbUser = 'root';
+$dbPass = 'CiTjTLdJzANGZkJEuhCSfsglVycowXCb';
+$dbName = 'railway';
 define('DB_CHARSET', 'utf8mb4');
 
 try {
-    $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+    $dsn = "mysql:host=" . $dbHost . ";port=" . $dbPort . ";dbname=" . $dbName . ";charset=" . DB_CHARSET;
     $options = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ];
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+    $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
 } catch (PDOException $e) {
     die("Database connection failed.");
 }
