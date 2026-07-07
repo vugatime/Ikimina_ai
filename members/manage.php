@@ -13,9 +13,13 @@ $message = $_GET['msg'] ?? '';
 if ($isSuperAdmin) {
     $stmt = $pdo->query("SELECT id, group_name FROM `groups` ORDER BY group_name ASC");
 } else {
-    if ($current_user_role === 'member') { header('Location: ../dashboard.php'); exit; }
-    $stmt = $pdo->prepare("SELECT g.id, g.group_name FROM `groups` g JOIN group_members gm ON g.id = gm.group_id WHERE gm.user_id = ? AND gm.deleted_at IS NULL AND gm.role_in_group IN ('group_admin','assistant_admin') ORDER BY g.group_name ASC");
-    $stmt->execute([$current_user_id]);
+// ROLE CHECK: Only Group Admin, Assistant Admin, Treasurer can record
+$stmt = $pdo->prepare("SELECT role_in_group FROM group_members WHERE user_id = ? AND deleted_at IS NULL LIMIT 1");
+$stmt->execute([$current_user_id]);
+$gr = $stmt->fetchColumn();
+if ($gr === 'member') { header('Location: /Ikimina_ai/dashboard.php'); exit; }
+$stmt = $pdo->prepare("SELECT g.id, g.group_name FROM `groups` g JOIN group_members gm ON g.id = gm.group_id WHERE gm.user_id = ? AND gm.deleted_at IS NULL AND gm.role_in_group IN ('group_admin','assistant_admin','treasurer') ORDER BY g.group_name ASC");
+$stmt->execute([$current_user_id]);
 }
 $myGroups = $stmt->fetchAll();
 

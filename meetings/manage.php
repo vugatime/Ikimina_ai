@@ -1,10 +1,14 @@
 <?php
+require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth_check.php';
 
-// ROLE CHECK: Only Group Admin, Assistant Admin, Treasurer can manage meetings
-if ($current_user_role === 'super_admin') { header('Location: ../dashboard.php'); exit; }
-if ($current_user_role === 'member') { header('Location: ../dashboard.php'); exit; }
+// ROLE CHECK: Get group role
+$stmt = $pdo->prepare("SELECT role_in_group FROM group_members WHERE user_id = ? AND deleted_at IS NULL LIMIT 1");
+$stmt->execute([$current_user_id]);
+$gr = $stmt->fetchColumn();
+if ($current_user_role === 'super_admin') { header('Location: /Ikimina_ai/dashboard.php'); exit; }
+if ($gr === 'member') { header('Location: /Ikimina_ai/dashboard.php'); exit; }
 
 $page_title = 'Meetings';
 $base_path = '../';

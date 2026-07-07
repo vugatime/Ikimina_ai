@@ -123,8 +123,29 @@ if ($isMember) {
     <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"><div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:#fef3c7;"><svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div class="text-2xl font-extrabold text-gray-900"><?php echo $pendingRequests; ?></div><div class="text-xs text-gray-500">Pending Requests</div></div>
 </div>
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2"><div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"><h3 class="font-bold text-gray-900 mb-3">Recent Savings</h3><?php if(empty($recentSavings)): ?><p class="text-gray-500 text-sm">No savings yet.</p><?php else: ?><?php foreach($recentSavings as $s): ?><div class="flex justify-between py-2 border-b border-gray-50 last:border-0"><span class="text-sm"><?php echo htmlspecialchars($s['member_id']); ?> — <?php echo htmlspecialchars($s['fullname']); ?></span><span class="font-semibold"><?php echo number_format($s['amount']); ?> RWF</span><span class="text-xs text-gray-400"><?php echo date('d M', strtotime($s['payment_date'])); ?></span></div><?php endforeach; ?><?php endif; ?></div></div>
-    <div class="space-y-4"><div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"><h3 class="font-bold text-gray-900 mb-3">Actions</h3><div class="space-y-2"><a href="members/manage.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition" style="background:#0F766E;">Manage Members</a><a href="loans/review.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition">Review Loans</a><a href="groups/edit.php?id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition">Edit Rules</a></div></div></div>
+    <div class="lg:col-span-2">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-bold text-gray-900 mb-3">Member Savings Overview</h3>
+            <?php
+            $stmt = $pdo->prepare("SELECT gm.member_id, u.fullname, COALESCE(SUM(CASE WHEN s.amount > 0 THEN s.amount ELSE 0 END), 0) as total_saved, COALESCE(SUM(CASE WHEN s.amount < 0 THEN -s.amount ELSE 0 END), 0) as total_payout, COALESCE(SUM(s.amount), 0) as net FROM group_members gm JOIN users u ON gm.user_id = u.id LEFT JOIN savings s ON gm.id = s.member_id AND s.group_id = ? WHERE gm.group_id = ? AND gm.deleted_at IS NULL GROUP BY gm.id, gm.member_id, u.fullname ORDER BY gm.member_id ASC");
+            $stmt->execute([$groupId, $groupId]);
+            $memberBalances = $stmt->fetchAll();
+            ?>
+            <?php if(empty($memberBalances)): ?><p class="text-gray-500 text-sm">No members yet.</p>
+            <?php else: ?>
+            <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>Member</th><th>Contributed</th><th>Payouts</th><th>Net</th></tr></thead><tbody>
+            <?php foreach($memberBalances as $mb): ?>
+            <tr class="border-b border-gray-50">
+                <td class="py-2"><span class="text-xs font-bold text-brand-600"><?php echo htmlspecialchars($mb['member_id']); ?></span> <span class="text-gray-700"><?php echo htmlspecialchars($mb['fullname']); ?></span></td>
+                <td class="py-2 font-semibold"><?php echo number_format($mb['total_saved']); ?> RWF</td>
+                <td class="py-2 text-green-600 font-semibold">+<?php echo number_format($mb['total_payout']); ?> RWF</td>
+                <td class="py-2 font-semibold <?php echo $mb['net']>=0?'text-brand-600':'text-red-600'; ?>"><?php echo number_format($mb['net']); ?> RWF</td>
+            </tr>
+            <?php endforeach; ?></tbody></table></div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <div class="space-y-4"><div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"><h3 class="font-bold text-gray-900 mb-3">Actions</h3><div class="space-y-2"><a href="members/manage.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition" style="background:#0F766E;">Manage Members</a><a href="loans/review.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition">Review Loans</a></div></div></div>
 </div>
 <?php if ($isGroupAdmin && $groupId): 
     require_once __DIR__ . '/config/ai_engine.php';
@@ -201,24 +222,68 @@ $stmt->execute([$uid, $gid]); $myFines = $stmt->fetchColumn();
 <!-- ============ TREASURER DASHBOARD ============ -->
 <?php elseif ($isTreasurer): ?>
 <?php
-// Get personal stats for Treasurer
 $gid = $groupId;
-$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM savings WHERE member_id = (SELECT id FROM group_members WHERE user_id = ? AND group_id = ? AND deleted_at IS NULL)");
-$stmt->execute([$uid, $gid]); $mySavings = $stmt->fetchColumn();
+// Personal stats
+$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM savings WHERE member_id = (SELECT id FROM group_members WHERE user_id = ? AND group_id = ? AND deleted_at IS NULL) AND amount > 0");
+$stmt->execute([$uid, $gid]); $myContributions = $stmt->fetchColumn();
+$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount_received), 0) FROM payout_recipients WHERE member_id = (SELECT id FROM group_members WHERE user_id = ? AND group_id = ? AND deleted_at IS NULL)");
+$stmt->execute([$uid, $gid]); $myPayouts = $stmt->fetchColumn();
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE member_id = (SELECT id FROM group_members WHERE user_id = ? AND group_id = ? AND deleted_at IS NULL) AND status IN ('active','approved')");
-$stmt->execute([$uid, $gid]); $myLoans = $stmt->fetchColumn();
+$stmt->execute([$uid, $gid]); $myActiveLoans = $stmt->fetchColumn();
+// Group stats
+$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM savings WHERE group_id = ? AND amount > 0");
+$stmt->execute([$gid]); $groupTotalSaved = $stmt->fetchColumn();
+$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount_received), 0) FROM payout_recipients pr JOIN payout_cycles pc ON pr.cycle_id = pc.id WHERE pc.group_id = ?");
+$stmt->execute([$gid]); $groupTotalPayouts = $stmt->fetchColumn();
+$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM savings WHERE group_id = ?");
+$stmt->execute([$gid]); $groupNetSavings = $stmt->fetchColumn();
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM loan_requests WHERE group_id = ? AND status = 'approved'");
+$stmt->execute([$gid]); $pendingDisbursements = $stmt->fetchColumn();
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE group_id = ? AND status IN ('active','approved')");
+$stmt->execute([$gid]); $activeGroupLoans = $stmt->fetchColumn();
 ?>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"><div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:#ccfbf1;"><svg class="w-5 h-5" style="color:#0F766E;" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div><div class="text-2xl font-extrabold text-gray-900"><?php echo number_format($mySavings); ?> RWF</div><div class="text-xs text-gray-500">My Savings</div></div>
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"><div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:#ccfbf1;"><svg class="w-5 h-5" style="color:#0F766E;" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div><div class="text-2xl font-extrabold text-gray-900"><?php echo $myLoans; ?></div><div class="text-xs text-gray-500">My Loans</div></div>
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"><div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:#ccfbf1;"><svg class="w-5 h-5" style="color:#0F766E;" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div><div class="text-2xl font-extrabold text-gray-900"><?php echo number_format($groupSavings); ?> RWF</div><div class="text-xs text-gray-500">Group Savings</div></div>
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"><div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:#fef3c7;"><svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div class="text-2xl font-extrabold text-gray-900"><?php echo $pendingDisbursements; ?></div><div class="text-xs text-gray-500">To Disburse</div></div>
-</div>
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2"><div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"><h3 class="font-bold text-gray-900 mb-3">Recent Savings</h3><?php if(empty($recentSavings)): ?><p class="text-gray-500 text-sm">No savings yet.</p><?php else: ?><?php foreach($recentSavings as $s): ?><div class="flex justify-between py-2 border-b border-gray-50 last:border-0"><span class="text-sm"><?php echo htmlspecialchars($s['fullname']); ?></span><span class="font-semibold"><?php echo number_format($s['amount']); ?> RWF</span><span class="text-xs text-gray-400"><?php echo date('d M', strtotime($s['payment_date'])); ?></span></div><?php endforeach; ?><?php endif; ?></div></div>
-    <div class="space-y-4"><div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"><h3 class="font-bold text-gray-900 mb-3">Actions</h3><div class="space-y-2"><a href="savings/record.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition" style="background:#0F766E;">Record Savings</a><a href="loans/disburse.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition">Disburse Loans</a></div></div></div>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
+        <div class="text-xl font-extrabold text-brand-600"><?php echo number_format($myContributions); ?> RWF</div>
+        <div class="text-xs text-gray-500 mt-0.5">My Contributions</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
+        <div class="text-xl font-extrabold text-green-600">+<?php echo number_format($myPayouts); ?> RWF</div>
+        <div class="text-xs text-gray-500 mt-0.5">My Payouts Received</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
+        <div class="text-xl font-extrabold text-gray-900"><?php echo $myActiveLoans; ?></div>
+        <div class="text-xs text-gray-500 mt-0.5">My Active Loans</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
+        <div class="text-xl font-extrabold text-amber-600"><?php echo $pendingDisbursements; ?></div>
+        <div class="text-xs text-gray-500 mt-0.5">Loans to Disburse</div>
+    </div>
 </div>
 
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="lg:col-span-2">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-bold text-gray-900 mb-3">Group Financial Overview</h3>
+            <table class="w-full text-sm">
+                <tr class="border-b border-gray-50"><td class="py-3 text-gray-500">Total Group Contributions</td><td class="py-3 font-semibold text-right"><?php echo number_format($groupTotalSaved); ?> RWF</td></tr>
+                <tr class="border-b border-gray-50"><td class="py-3 text-gray-500">Total Payouts (Kuzenguruka)</td><td class="py-3 font-semibold text-right text-green-600">-<?php echo number_format($groupTotalPayouts); ?> RWF</td></tr>
+                <tr class="border-b border-gray-50"><td class="py-3 text-gray-500">Current Group Balance</td><td class="py-3 font-semibold text-right text-brand-600"><?php echo number_format($groupNetSavings); ?> RWF</td></tr>
+                <tr><td class="py-3 text-gray-500">Active Loans</td><td class="py-3 font-semibold text-right"><?php echo $activeGroupLoans; ?></td></tr>
+            </table>
+        </div>
+    </div>
+    <div class="space-y-4">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h3 class="font-bold text-gray-900 mb-3">Quick Actions</h3>
+            <div class="space-y-2">
+                <a href="savings/record.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition" style="background:#0F766E;">Record Savings</a>
+                <a href="loans/disburse.php?group_id=<?php echo $groupId; ?>" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition">Disburse Loans</a>
+                <a href="report.php" class="block w-full text-center px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition">My Report</a>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- ============ MEMBER DASHBOARD ============ -->
 <?php elseif ($isMember): ?>
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -233,7 +298,14 @@ $stmt->execute([$uid, $gid]); $myLoans = $stmt->fetchColumn();
 </div>
 
 <?php else: ?>
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center"><p class="text-gray-500 text-sm">You are not a member of any group yet.</p></div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+        <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style="background:#ccfbf1;">
+            <svg class="w-8 h-8" style="color:#0F766E;" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 mb-2">Create Your First Group</h3>
+        <p class="text-gray-500 text-sm mb-4">Start by creating a savings group to begin managing your ikimina.</p>
+        <a href="groups/create.php" class="inline-block px-6 py-3 rounded-xl text-sm font-semibold text-white transition shadow-md" style="background:#0F766E;">+ Create Group</a>
+    </div>
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

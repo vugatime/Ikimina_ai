@@ -145,7 +145,7 @@ if (isset($pdo) && isset($_SESSION['user_id'])) {
                 <a href="<?php echo $base; ?>loans/manage.php<?php echo $gidParam; ?>" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 text-sm font-medium"><?php echo __('manage_loans'); ?></a>
                 <a href="<?php echo $base; ?>meetings/manage.php<?php echo $gidParam; ?>" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 text-sm font-medium"><?php echo __('meetings'); ?></a>
                 <a href="<?php echo $base; ?>payouts/manage.php<?php echo $gidParam; ?>" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 text-sm font-medium">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Kuzenguruka
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Kuzenguruka
                 </a>
                 <a href="<?php echo $base; ?>report.php" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-300 text-sm font-medium"><?php echo __('my_report'); ?></a>
                 <?php endif; ?>

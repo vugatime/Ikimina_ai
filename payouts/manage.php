@@ -1,9 +1,9 @@
 <?php
+require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/payout_engine.php';
 
-// Session check
-if (!isset($_SESSION['user_id'])) { header('Location: /login.php'); exit; }
+if (!isset($_SESSION['user_id'])) { header('Location: /Ikimina_ai/auth.php'); exit; }
 $current_user_id = $_SESSION['user_id'];
 $current_user_name = $_SESSION['user_name'] ?? 'User';
 $current_user_role = $_SESSION['user_role'] ?? 'member';
@@ -23,10 +23,10 @@ if ($current_user_role !== 'super_admin') {
 
 // Only Group Admin can manage payouts
 if ($groupRole !== 'group_admin' && $current_user_role !== 'super_admin') {
-    header('Location: /dashboard.php'); exit;
+    header('Location: /Ikimina_ai/dashboard.php'); exit;
 }
 
-// Get groups for Super Admin
+// Get groups
 if ($current_user_role === 'super_admin') {
     $stmt = $pdo->query("SELECT id, group_name FROM `groups` ORDER BY group_name ASC");
     $myGroups = $stmt->fetchAll();
@@ -40,14 +40,12 @@ $groupId = $_GET['group_id'] ?? $groupId ?? ($myGroups[0]['id'] ?? null);
 $msg = $_GET['msg'] ?? '';
 
 // Handle create cycle
+$cycleResult = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_cycle'])) {
     $cycleName = trim($_POST['cycle_name']);
     $totalAmount = $_POST['total_amount'];
     $recipientsCount = $_POST['recipients_count'];
-    
-    $result = createPayoutCycle($pdo, $groupId, $cycleName, $totalAmount, $recipientsCount);
-    header('Location: manage.php?group_id=' . $groupId . '&msg=created&cycle=' . $result['cycle_id']);
-    exit;
+    $cycleResult = createPayoutCycle($pdo, $groupId, $cycleName, $totalAmount, $recipientsCount, $current_user_id);
 }
 
 // Get group info
@@ -74,25 +72,58 @@ if ($groupId) {
 
 // Preview recipients
 $preview = $_GET['preview'] ?? null;
-$previewRecipients = [];
+$previewResult = null;
 if ($preview && $groupId) {
-    $amount = $_GET['amount'] ?? $groupInfo['contribution_amount'] * 10;
+    $amount = $_GET['amount'] ?? ($totalSavings > 0 ? $totalSavings : 100000);
     $count = $_GET['count'] ?? 1;
-    $previewRecipients = selectPayoutRecipients($pdo, $groupId, $amount, $count);
+    $previewResult = selectPayoutRecipients($pdo, $groupId, $amount, $count);
 }
 ?>
 <?php require_once __DIR__ . '/../includes/header.php'; ?>
 
-<?php if ($msg === 'created'): ?>
+<?php if ($cycleResult && isset($cycleResult['success'])): ?>
 <div class="mb-4 bg-green-50 border border-green-200 text-green-800 px-5 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-    Payout cycle created successfully! Recipients selected by AI.
+    Payout cycle created successfully! <?php echo count($cycleResult['recipients']); ?> recipient(s) selected by AI.
 </div>
 <?php endif; ?>
 
-<div class="mb-6">
-    <h3 class="text-xl font-extrabold text-gray-900">Kuzenguruka — Rotating Payouts</h3>
-    <p class="text-gray-500 text-sm mt-1">AI-powered fair distribution of group savings to members.</p>
+<?php if ($cycleResult && isset($cycleResult['error'])): ?>
+<div class="mb-4 bg-red-50 border border-red-200 text-red-800 px-5 py-3 rounded-xl text-sm font-medium">
+    <?php echo htmlspecialchars($cycleResult['error']); ?>
+</div>
+<?php endif; ?>
+
+<?php if ($cycleResult && !empty($cycleResult['blocked'])): ?>
+<div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-5 py-3 rounded-xl text-sm">
+    <p class="font-semibold mb-2">Members Not Eligible</p>
+    <?php foreach($cycleResult['blocked'] as $b): ?>
+    <div class="flex justify-between py-1 text-xs">
+        <span><?php echo htmlspecialchars($b['member_id']); ?> — <?php echo htmlspecialchars($b['fullname']); ?></span>
+        <span class="text-amber-700"><?php echo htmlspecialchars($b['blocked_reason'] ?? 'Not eligible'); ?></span>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<?php if ($previewResult && !empty($previewResult['blocked'])): ?>
+<div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-5 py-3 rounded-xl text-sm">
+    <p class="font-semibold mb-2">Members Not Eligible</p>
+    <?php foreach($previewResult['blocked'] as $b): ?>
+    <div class="flex justify-between py-1 text-xs">
+        <span><?php echo htmlspecialchars($b['member_id']); ?> — <?php echo htmlspecialchars($b['fullname']); ?></span>
+        <span class="text-amber-700"><?php echo htmlspecialchars($b['blocked_reason'] ?? 'Not eligible'); ?></span>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+    <div>
+        <h3 class="text-xl font-extrabold text-gray-900">Kuzenguruka — Rotating Payouts</h3>
+        <p class="text-gray-500 text-sm mt-1">AI-powered fair distribution of group savings to members.</p>
+    </div>
+    <a href="generation.php?group_id=<?php echo $groupId; ?>" class="px-4 py-2 rounded-xl text-sm font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 transition no-underline">View All Generations</a>
 </div>
 
 <!-- Group Selector -->
@@ -106,11 +137,10 @@ if ($preview && $groupId) {
 </div>
 
 <?php if ($groupInfo): ?>
-<!-- Group Stats -->
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
     <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <div class="text-2xl font-extrabold text-brand-600"><?php echo number_format($totalSavings); ?> RWF</div>
-        <div class="text-xs text-gray-500 mt-0.5">Total Group Savings</div>
+        <div class="text-xs text-gray-500 mt-0.5">Available Group Savings</div>
     </div>
     <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <div class="text-2xl font-extrabold text-gray-900"><?php echo count($payoutHistory); ?></div>
@@ -134,26 +164,26 @@ if ($preview && $groupId) {
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1.5">Total Amount to Distribute (RWF)</label>
-                    <input type="number" name="total_amount" class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-50 transition" placeholder="e.g., 500000" required>
+                    <input type="number" name="total_amount" class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-50 transition" placeholder="e.g., 150000" required>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1.5">Number of Recipients</label>
                     <select name="recipients_count" class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-600 focus:ring-4 focus:ring-brand-50 transition">
-                        <option value="1">1 Person (Full Amount)</option>
-                        <option value="2">2 People (Split)</option>
-                        <option value="3">3 People (Split)</option>
+                        <option value="1">1 Person</option>
+                        <option value="2">2 People</option>
+                        <option value="3">3 People</option>
                     </select>
                 </div>
                 <div class="flex gap-3">
                     <button type="submit" name="create_cycle" class="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition" style="background:#0F766E;">Run AI Selection & Create Cycle</button>
-                    <a href="?group_id=<?php echo $groupId; ?>&preview=1&amount=<?php echo $totalSavings > 0 ? $totalSavings : 100000; ?>&count=1" class="px-4 py-3 rounded-xl text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition no-underline">Preview AI Picks</a>
+                    <a href="?group_id=<?php echo $groupId; ?>&preview=1&amount=<?php echo $totalSavings > 0 ? $totalSavings : 100000; ?>&count=1" class="px-4 py-3 rounded-xl text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition no-underline">Preview</a>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- AI Preview -->
-    <?php if ($preview && !empty($previewRecipients)): ?>
+    <?php if ($preview && $previewResult && !empty($previewResult['selected'])): ?>
     <div>
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -161,7 +191,7 @@ if ($preview && $groupId) {
                 AI Selection Preview
             </h3>
             <div class="space-y-3">
-                <?php foreach($previewRecipients as $r): ?>
+                <?php foreach($previewResult['selected'] as $r): ?>
                 <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
                     <div class="flex justify-between items-center mb-2">
                         <span class="font-bold text-gray-900"><?php echo htmlspecialchars($r['member_id']); ?> — <?php echo htmlspecialchars($r['fullname']); ?></span>
@@ -169,9 +199,9 @@ if ($preview && $groupId) {
                     </div>
                     <div class="flex items-center gap-2 mb-2">
                         <span class="text-xs text-gray-500">AI Score:</span>
-                        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-bold <?php echo $r['ai_score'] >= 70 ? 'bg-green-100 text-green-700' : ($r['ai_score'] >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'); ?>"><?php echo $r['ai_score']; ?>%</span>
+                        <span class="inline-block px-2 py-0.5 rounded-full text-xs font-bold <?php echo ($r['ai_score'] ?? 0) >= 70 ? 'bg-green-100 text-green-700' : (($r['ai_score'] ?? 0) >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'); ?>"><?php echo $r['ai_score'] ?? 0; ?>%</span>
                     </div>
-                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars($r['reason']); ?></p>
+                    <p class="text-xs text-gray-500"><?php echo htmlspecialchars($r['reason'] ?? ''); ?></p>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -190,6 +220,7 @@ if ($preview && $groupId) {
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
                 <div>
                     <span class="font-bold text-gray-900"><?php echo htmlspecialchars($cycle['cycle_name']); ?></span>
+                    <a href="generation.php?group_id=<?php echo $groupId; ?>&gen=<?php echo $cycle['generation']; ?>" class="text-xs text-brand-600 hover:underline ml-2">View Gen <?php echo $cycle['generation']; ?> Sheet</a>
                     <span class="inline-block ml-2 px-2 py-0.5 rounded-full text-xs font-semibold <?php echo $cycle['status'] === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'; ?>"><?php echo ucfirst($cycle['status']); ?></span>
                 </div>
                 <span class="text-sm font-semibold text-brand-600">Total: <?php echo number_format($cycle['total_amount']); ?> RWF</span>
@@ -198,8 +229,8 @@ if ($preview && $groupId) {
             <div class="space-y-2">
                 <?php foreach($cycle['recipients'] as $rec): ?>
                 <div class="flex justify-between items-center text-sm bg-white rounded-lg p-2">
-                    <span><?php echo htmlspecialchars($rec['member_id']); ?> — <?php echo htmlspecialchars($rec['fullname']); ?></span>
-                    <span class="font-semibold text-green-600">+<?php echo number_format($rec['amount_received']); ?> RWF</span>
+                    <span><?php echo htmlspecialchars($rec['member_id'] ?? ''); ?> — <?php echo htmlspecialchars($rec['fullname'] ?? ''); ?></span>
+                    <span class="font-semibold text-green-600">+<?php echo number_format($rec['amount_received'] ?? 0); ?> RWF</span>
                 </div>
                 <?php endforeach; ?>
             </div>

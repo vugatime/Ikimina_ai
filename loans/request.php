@@ -2,11 +2,11 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth_check.php';
 
-// ROLE CHECK: Only members can request loans
+// ROLE CHECK: All group members can request loans (Member, Assistant Admin, Treasurer)
 $stmt = $pdo->prepare("SELECT role_in_group FROM group_members WHERE user_id = ? AND deleted_at IS NULL LIMIT 1");
 $stmt->execute([$current_user_id]);
 $gr = $stmt->fetchColumn();
-if ($gr !== 'member') { header('Location: ../dashboard.php'); exit; }
+if (!in_array($gr, ['member', 'assistant_admin', 'treasurer'])) { header('Location: ../dashboard.php'); exit; }
 
 $page_title = 'Request Loan';
 $base_path = '../';
