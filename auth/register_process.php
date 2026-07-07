@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/email.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: ../register.php'); exit; }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: ../auth.php?tab=register'); exit; }
 
 $fullname = trim($_POST['fullname']);
 $email = trim($_POST['email']);
@@ -12,16 +12,16 @@ $password = $_POST['password'];
 $confirm = $_POST['confirm_password'];
 
 if (empty($fullname) || empty($email) || empty($phone) || empty($password)) {
-    header('Location: ../register.php?error=empty'); exit;
+    header('Location: ../auth.php?tab=register&error=empty'); exit;
 }
 if ($password !== $confirm) {
-    header('Location: ../register.php?error=mismatch'); exit;
+    header('Location: ../auth.php?tab=register&error=mismatch'); exit;
 }
 
 try {
     $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
     $stmt->execute([$email]);
-    if ($stmt->fetch()) { header('Location: ../register.php?error=exists'); exit; }
+    if ($stmt->fetch()) { header('Location: ../auth.php?tab=register&error=exists'); exit; }
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
     $stmt = $pdo->prepare("INSERT INTO users (fullname, email, password, phone, role, status, created_at) VALUES (?, ?, ?, ?, 'member', 'active', NOW())");
@@ -38,5 +38,5 @@ try {
 
     header('Location: ../dashboard.php?welcome=1'); exit;
 } catch (PDOException $e) {
-    header('Location: ../register.php?error=server'); exit;
+    header('Location: ../auth.php?tab=register&error=server'); exit;
 }

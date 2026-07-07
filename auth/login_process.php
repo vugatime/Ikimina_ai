@@ -3,7 +3,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/session.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ../login.php');
+    header('Location: ../auth.php');
     exit;
 }
 
@@ -11,12 +11,11 @@ $login = trim($_POST['login'] ?? '');
 $password = $_POST['password'] ?? '';
 
 if (empty($login) || empty($password)) {
-    header('Location: ../login.php?error=invalid');
+    header('Location: ../auth.php?error=invalid');
     exit;
 }
 
 try {
-    // Find user by email, phone, or member_id
     $stmt = $pdo->prepare("
         SELECT u.id, u.fullname, u.email, u.password, u.role, u.status 
         FROM users u 
@@ -39,11 +38,10 @@ try {
         header('Location: ../dashboard.php');
         exit;
     } else {
-        header('Location: ../login.php?error=invalid');
+        header('Location: ../auth.php?error=invalid');
         exit;
     }
 } catch (PDOException $e) {
-    error_log("Login error: " . $e->getMessage());
-    header('Location: ../login.php?error=invalid');
+    header('Location: ../auth.php?error=invalid');
     exit;
 }
